@@ -21,15 +21,22 @@ of version control.
 
 ## 3. Configure the backend
 
-Copy `.env.example` to `.env` and fill in:
+Create a file named `.env` in the project root and add **your own** Medplum
+credentials:
 
 ```bash
+CDP_ENVIRONMENT=development
+CDP_DEBUG=true
+
 CDP_MEDPLUM_BASE_URL=https://api.medplum.com/
 CDP_MEDPLUM_CLIENT_ID=<your client id>
 CDP_MEDPLUM_CLIENT_SECRET=<your client secret>
 ```
 
-`.env` is git-ignored.
+> **Note:** all `.env*` files (including `.env.example`) are git-ignored, so
+> credentials are never committed. Each developer supplies their own Client
+> Application ID and secret from their Medplum project. The `.env` above is the
+> only configuration you need to run the project.
 
 ## 4. Try it
 

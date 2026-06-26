@@ -14,10 +14,11 @@ dist/
 venv/
 env/
 
-# Environment / secrets
+# Environment / secrets — all env files are ignored, including the example,
+# because it contains live credentials on this machine. New users should
+# follow docs/medplum.md to create their own .env.
 .env
 .env.*
-!.env.example
 
 # Editors / OS
 .vscode/
