@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 
 from clinical_data_platform import __version__
-from clinical_data_platform.api import health
+from clinical_data_platform.api import health, patients
 from clinical_data_platform.core.config import settings
 
 
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
         debug=settings.debug,
     )
     app.include_router(health.router)
+    app.include_router(patients.router)
     return app
 
 

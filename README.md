@@ -13,6 +13,7 @@ exposing it through a well-documented API for downstream applications and analyt
 
 - **Language:** Python 3.11+
 - **API framework:** [FastAPI](https://fastapi.tiangolo.com/)
+- **Data backend:** [Medplum](https://www.medplum.com/) (hosted FHIR server) — see [docs/medplum.md](docs/medplum.md)
 - **Server:** Uvicorn
 - **Testing:** pytest
 - **Tooling:** ruff (lint + format)
@@ -25,7 +26,7 @@ clinical-data-platform/
 │   ├── api/          # FastAPI routers / endpoints
 │   ├── core/         # Config, settings, app wiring
 │   ├── models/       # Pydantic schemas / data models
-│   └── services/     # Business logic, integrations (FHIR/HL7, storage)
+│   └── services/     # Business logic, integrations (Medplum FHIR client)
 ├── tests/            # pytest test suite
 ├── docs/             # Design docs, architecture notes
 └── scripts/          # Dev / ops helper scripts
