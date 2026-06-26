@@ -87,9 +87,28 @@ class MedplumClient:
         resp = await self._request("GET", f"/{resource_type}/{resource_id}")
         return resp.json()
 
-    async def create(self, resource_type: str, resource: dict[str, Any]) -> dict[str, Any]:
-        """Create a new FHIR resource."""
-        resp = await self._request("POST", f"/{resource_type}", json=resource)
+    async def create(
+        self,
+        resource_type: str,
+        resource: dict[str, Any],
+        if_none_exist: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a new FHIR resource.
+
+        If ``if_none_exist`` is given (a FHIR search query like
+        ``identifier=sys|val``), Medplum performs a conditional create: it
+        returns the existing match instead of making a duplicate, which makes
+        seed scripts safe to re-run.
+        """
+        headers = {"If-None-Exist": if_none_exist} if if_none_exist else {}
+        resp = await self._request("POST", f"/{resource_type}", json=resource, headers=headers)
+        return resp.json()
+
+    async def update(
+        self, resource_type: str, resource_id: str, resource: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update (PUT) an existing resource by id."""
+        resp = await self._request("PUT", f"/{resource_type}/{resource_id}", json=resource)
         return resp.json()
 
 

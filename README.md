@@ -49,6 +49,17 @@ uvicorn clinical_data_platform.main:app --reload
 open http://localhost:8000/docs
 ```
 
+## Sample data
+
+Populate your Medplum project with synthetic test patients, providers, and rich
+clinical data — see [docs/sample-data.md](docs/sample-data.md):
+
+```bash
+python scripts/seed_patients.py        # 10 test patients
+python scripts/seed_providers.py       # 5 test providers
+python scripts/seed_clinical_data.py   # demographics, conditions, vitals, labs, meds, etc.
+```
+
 ## Development
 
 ```bash
