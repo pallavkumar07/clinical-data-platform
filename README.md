@@ -34,19 +34,58 @@ clinical-data-platform/
 
 ## Getting Started
 
+### 1. Install
+
 ```bash
-# 1. Create and activate a virtual environment
+# Create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 2. Install in editable mode with dev dependencies
+# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
+```
 
-# 3. Run the API (hot reload)
+### 2. Set up Medplum (required)
+
+This platform uses [Medplum](https://www.medplum.com/) as its FHIR data
+backend. The app authenticates to a **hosted** Medplum server with your own
+credentials — nothing runs without this step. Full guide:
+[docs/medplum.md](docs/medplum.md).
+
+1. **Create a project.** Sign up at [app.medplum.com](https://app.medplum.com/)
+   (free tier available). A default Project is created for you.
+
+2. **Create machine credentials.** In the Medplum admin app, go to
+   **Admin → Project → Clients** (or
+   [app.medplum.com/admin/clients](https://app.medplum.com/admin/clients)) →
+   **New Client Application**. Copy the generated **Client ID** and
+   **Client Secret** — these let the backend talk to Medplum server-to-server.
+
+3. **Create a `.env` file** in the project root with your own values:
+
+   ```bash
+   CDP_ENVIRONMENT=development
+   CDP_DEBUG=true
+
+   CDP_MEDPLUM_BASE_URL=https://api.medplum.com/
+   CDP_MEDPLUM_CLIENT_ID=<your client id>
+   CDP_MEDPLUM_CLIENT_SECRET=<your client secret>
+   ```
+
+   > `.env` is git-ignored, so your credentials are never committed. Each
+   > developer supplies their own — see [docs/medplum.md](docs/medplum.md).
+
+### 3. Run the API
+
+```bash
+# Start the server (hot reload)
 uvicorn clinical_data_platform.main:app --reload
 
-# 4. Open the interactive API docs
+# Open the interactive API docs
 open http://localhost:8000/docs
+
+# Verify the Medplum connection (searches Patient resources)
+curl http://localhost:8000/patients
 ```
 
 ## Sample data
