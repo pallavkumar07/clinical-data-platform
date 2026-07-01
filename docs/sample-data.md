@@ -39,6 +39,13 @@ For each test patient (discovered by their `@example.com` email):
 - **Observations** — a vitals panel (BP, HR, temp, resp rate, SpO₂, height,
   weight, BMI) and a lab panel (glucose, HbA1c, lipid panel, creatinine).
 - **AllergyIntolerance**, **Immunizations** (2–3), and a recent **Encounter**.
+- **DiagnosticReport** — a lab report that groups the patient's lab
+  Observations, performed by their primary provider.
+- **Coverage** — insurance, referencing a payer **Organization** (Blue Cross
+  Blue Shield, Aetna, UnitedHealthcare, Cigna, or Medicare) with a subscriber
+  id and plan class.
+- **DocumentReference** — a clinical progress note (US Core clinical note) with
+  a text attachment, authored by the primary provider and tied to the Encounter.
 
 ### Key properties
 

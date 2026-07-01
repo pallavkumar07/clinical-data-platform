@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import base64
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -90,6 +91,17 @@ IMMUNIZATIONS = [
     ("133", "Pneumococcal conjugate PCV 13"),
     ("187", "Zoster recombinant"),
 ]
+
+PAYERS = [
+    ("bcbs", "Blue Cross Blue Shield"),
+    ("aetna", "Aetna"),
+    ("uhc", "UnitedHealthcare"),
+    ("cigna", "Cigna"),
+    ("medicare", "Medicare"),
+]
+PLAN_TYPES = [("HMO", "health maintenance organization policy"),
+              ("PPO", "preferred provider organization policy"),
+              ("POS", "point of service policy")]
 
 
 # --- Builders --------------------------------------------------------------
@@ -201,6 +213,19 @@ async def main() -> None:
             patients.append(res)
     if not patients:
         raise SystemExit("No test patients found — run scripts/seed_patients.py first.")
+
+    # Create payer Organizations once (idempotent); Coverage.payor references them.
+    payers = []
+    for slug, name in PAYERS:
+        org = await c.create("Organization", {
+            "resourceType": "Organization", "identifier": [{"system": SAMPLE_SYS, "value": f"payer-{slug}"}],
+            "active": True, "name": name,
+            "type": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                                  "code": "pay", "display": "Payer"}]}],
+        }, if_none_exist=f"identifier={SAMPLE_SYS}|payer-{slug}")
+        payers.append(org)
+    print(f"\nPayer organizations ready: {', '.join(p['name'] for p in payers)}")
+
     print(f"\nEnriching {len(patients)} test patients...\n")
 
     for patient in patients:
@@ -294,6 +319,7 @@ async def main() -> None:
 
         # 5) Labs.
         lwhen = NOW - timedelta(days=rng.randint(10, 90))
+        lab_refs = []
         for slug, loinc, name, val, unit, ucum in [
             ("lab-glucose", "2339-0", "Glucose", rng.uniform(80, 130), "mg/dL", "mg/dL"),
             ("lab-a1c", "4548-4", "Hemoglobin A1c", rng.uniform(5.0, 7.5), "%", "%"),
@@ -302,8 +328,9 @@ async def main() -> None:
             ("lab-hdl", "2085-9", "HDL cholesterol", rng.uniform(40, 70), "mg/dL", "mg/dL"),
             ("lab-creat", "2160-0", "Creatinine", rng.uniform(0.7, 1.2), "mg/dL", "mg/dL"),
         ]:
-            await c.create("Observation", lab(pid, slug, loinc, name, val, unit, ucum, lwhen),
-                           if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-{slug}")
+            obs = await c.create("Observation", lab(pid, slug, loinc, name, val, unit, ucum, lwhen),
+                                 if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-{slug}")
+            lab_refs.append({"reference": f"Observation/{obs['id']}", "display": name})
 
         # 6) Allergy.
         al = rng.choice(ALLERGIES)
@@ -342,7 +369,7 @@ async def main() -> None:
         # 8) Encounter (the recent visit, with a random provider).
         enc_prov = rng.choice(providers)
         estart = when
-        await c.create("Encounter", {
+        enc = await c.create("Encounter", {
             "resourceType": "Encounter", "identifier": sample_id(pid, "encounter"),
             "status": "finished",
             "class": {"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
@@ -354,13 +381,84 @@ async def main() -> None:
                                             "display": display_name(enc_prov)}}],
             "period": {"start": iso(estart), "end": iso(estart + timedelta(minutes=30))},
         }, if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-encounter")
+        enc_ref = f"Encounter/{enc['id']}"
 
+        # 9) DiagnosticReport — groups this patient's lab Observations.
+        await c.create("DiagnosticReport", {
+            "resourceType": "DiagnosticReport", "identifier": sample_id(pid, "labreport"),
+            "status": "final",
+            "category": [{"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                                      "code": "LAB", "display": "Laboratory"}]}],
+            "code": {"coding": [{"system": "http://loinc.org", "code": "24323-8",
+                                 "display": "Comprehensive metabolic + lipid panel"}], "text": "Laboratory panel"},
+            "subject": {"reference": f"Patient/{pid}"},
+            "encounter": {"reference": enc_ref},
+            "effectiveDateTime": iso(lwhen), "issued": iso(lwhen),
+            "performer": [{"reference": f"Practitioner/{primary['id']}", "display": display_name(primary)}],
+            "result": lab_refs,
+        }, if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-labreport")
+
+        # 10) Coverage — insurance with a payer Organization.
+        payer = rng.choice(payers)
+        plan = rng.choice(PLAN_TYPES)
+        await c.create("Coverage", {
+            "resourceType": "Coverage", "identifier": sample_id(pid, "coverage"),
+            "status": "active",
+            "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                                 "code": plan[0], "display": plan[1]}], "text": plan[1]},
+            "subscriberId": f"SUB{rng.randint(10**8, 10**9 - 1)}",
+            "beneficiary": {"reference": f"Patient/{pid}", "display": pname},
+            "relationship": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/subscriber-relationship",
+                                         "code": "self", "display": "Self"}]},
+            "payor": [{"reference": f"Organization/{payer['id']}", "display": payer["name"]}],
+            "class": [
+                {"type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                                      "code": "group"}]}, "value": f"GRP{rng.randint(1000, 9999)}",
+                 "name": f"{payer['name']} Group"},
+                {"type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                                      "code": "plan"}]}, "value": plan[0], "name": f"{payer['name']} {plan[0]}"},
+            ],
+        }, if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-coverage")
+
+        # 11) Clinical note — a progress note as a DocumentReference (US Core clinical note).
         cond_names = ", ".join(x["display"] for x in conds)
-        print(f"  ✓ {pname:<26} PCP={display_name(primary):<22} dx: {cond_names}")
+        note_text = (
+            f"PROGRESS NOTE\n"
+            f"Patient: {pname}   Date: {estart.date()}   Provider: {display_name(primary)}\n\n"
+            f"Subjective: Patient presents for routine follow-up and reports feeling well "
+            f"with no acute complaints.\n"
+            f"Objective: Vitals reviewed and within expected ranges for this visit. "
+            f"Laboratory panel obtained.\n"
+            f"Assessment: {cond_names}.\n"
+            f"Plan: Continue current medications, reinforce lifestyle measures, and follow up "
+            f"in 3 months or sooner as needed.\n"
+        )
+        note_b64 = base64.b64encode(note_text.encode()).decode()
+        await c.create("DocumentReference", {
+            "resourceType": "DocumentReference", "identifier": sample_id(pid, "note"),
+            "status": "current", "docStatus": "final",
+            "type": {"coding": [{"system": "http://loinc.org", "code": "11506-3",
+                                 "display": "Progress note"}], "text": "Progress note"},
+            "category": [{"coding": [{"system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
+                                      "code": "clinical-note", "display": "Clinical Note"}]}],
+            "subject": {"reference": f"Patient/{pid}", "display": pname},
+            "date": iso(estart),
+            "author": [{"reference": f"Practitioner/{primary['id']}", "display": display_name(primary)}],
+            "content": [{"attachment": {"contentType": "text/plain", "data": note_b64,
+                                        "title": "Progress Note"}}],
+            "context": {"encounter": [{"reference": enc_ref}],
+                        "period": {"start": iso(estart), "end": iso(estart + timedelta(minutes=30))}},
+        }, if_none_exist=f"identifier={SAMPLE_SYS}|{pid}-note")
+
+        print(f"  ✓ {pname:<26} PCP={display_name(primary):<22} dx: {cond_names}"
+              f" | ins: {payer['name']}")
 
     print("\nDone. Explore in Medplum:")
-    print("    Patients:   https://app.medplum.com/Patient")
-    print("    Care teams: https://app.medplum.com/CareTeam")
+    print("    Patients:    https://app.medplum.com/Patient")
+    print("    Care teams:  https://app.medplum.com/CareTeam")
+    print("    Lab reports: https://app.medplum.com/DiagnosticReport")
+    print("    Coverage:    https://app.medplum.com/Coverage")
+    print("    Notes:       https://app.medplum.com/DocumentReference")
 
 
 if __name__ == "__main__":
