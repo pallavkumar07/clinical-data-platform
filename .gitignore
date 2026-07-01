@@ -20,6 +20,35 @@ env/
 .env
 .env.*
 
+# Credentials & secret material — never commit these to a public repo.
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.crt
+*.cer
+secrets.*
+*secret*.json
+*secret*.yaml
+*secret*.yml
+credentials
+credentials.*
+*credentials*.json
+.netrc
+.pgpass
+*.token
+service-account*.json
+gcp-*.json
+aws-credentials*
+.aws/
+.ssh/
+
 # Editors / OS
 .vscode/
 .idea/
