@@ -34,6 +34,8 @@ clinical-data-platform/
 
 ## Getting Started
 
+**Prerequisites:** Python 3.11+ · a free [Medplum](https://app.medplum.com/) account · `git`
+
 ### 1. Install
 
 ```bash
